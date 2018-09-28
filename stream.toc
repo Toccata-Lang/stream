@@ -1,0 +1,101 @@
+
+(defprotocol AsStream
+  (stream [_]))
+
+(deftype StreamEnd [x]
+  Stringable
+  (string-list [_]
+    (list "<Stream End " (str x) ">")))
+
+(deftype StreamError [x])
+
+(deftype Stream [carrier hd-fn tl-fn empty-fn]
+  Stringable
+  (string-list [_]
+    (comp (list "<Stream ")
+          (string-list carrier)
+          (list ">")))
+
+  Collection
+  (empty? [s]
+    (empty-fn carrier))
+
+  Seqable
+  (first [_]
+    (hd-fn carrier))
+
+  (rest [s]
+    (.carrier s (tl-fn carrier)))
+
+  (drop [s n]
+    (either (and (< 0 n)
+                 (do
+                   (first s)
+                   (maybe (drop (rest s) (dec n)))))
+            s))
+
+  Container
+  (map [s f]
+    (Stream carrier
+            (fn [s]
+              (map (hd-fn s) f))
+            (fn [s]
+              (either (and (empty-fn carrier)
+                           (maybe (Stream []
+                                          (fn [_] nothing)
+                                          identity
+                                          empty?)))
+                      (tl-fn s)))
+            empty-fn))
+
+  (extract [s]
+    (either (hd-fn carrier)
+            (StreamEnd nothing)))
+
+  (extend [s f]
+    (Stream s f rest empty?)))
+
+(def empty-stream (Stream []
+                          (fn [_] nothing)
+                          identity
+                          empty?))
+
+(extend-type Sequence
+  AsStream
+  (stream [l]
+    (Stream l first rest empty?)))
+
+(extend-type String
+  AsStream
+  (stream [s]
+    (stream [s])))
+
+(defn state-stream [initial-state state-fn]
+  (Stream (state-fn initial-state)
+          (fn [[x stream-state]]
+            (either (and (instance? StreamEnd x)
+                         (maybe nothing))
+                    (maybe x)))
+          (fn [[_ stream-state]]
+            (state-fn stream-state))
+          (fn [[_ stream-state]]
+            (empty? stream-state))))
+
+(extend-type Stream
+  Seqable
+  (take [s n]
+    (state-stream [n s]
+                  (fn [[remaining s]]
+                    (either (for [_ (< 0 remaining)
+                                  head (first s)]
+                              [head [(dec remaining) (rest s)]])
+                            [(StreamEnd nothing) [0 empty-stream]])))))
+
+(defn sink [s f]
+  (or (map (instance? String s) f)
+      (map (first s)
+           (fn [x]
+             (f x)
+             (or (empty? s)
+                 (sink (rest s) f))))
+      (f (StreamEnd nothing))))
