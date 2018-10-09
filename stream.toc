@@ -20,6 +20,15 @@
   (empty? [s]
     (empty-fn carrier))
 
+  (reduce [s v f]
+    (let [new-v (either (map (first s)
+                             (fn [x]
+                               (f v x)))
+                        v)]
+      (either (and (empty? s)
+                   (maybe new-v))
+              (reduce (rest s) new-v f))))
+
   Seqable
   (first [_]
     (hd-fn carrier))
