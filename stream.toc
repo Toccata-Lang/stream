@@ -69,6 +69,11 @@
                           identity
                           empty?))
 
+(extend-type LazyList
+  AsStream
+  (stream [l]
+    (Stream l first rest empty?)))
+
 (extend-type Sequence
   AsStream
   (stream [l]
