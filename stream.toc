@@ -12,9 +12,10 @@
 (deftype Stream [carrier hd-fn tl-fn empty-fn]
   Stringable
   (string-list [_]
-    (comp (list "<Stream ")
-          (string-list carrier)
-          (list ">")))
+    (list "<Stream "
+          (str carrier) ", "
+          (str hd-fn) ", "
+          (str tl-fn) ">"))
 
   Collection
   (empty? [s]
@@ -62,7 +63,7 @@
             (StreamEnd nothing)))
 
   (extend [s f]
-    (Stream s f rest empty?)))
+    (Stream s (comp maybe f) rest empty?)))
 
 (def empty-stream (Stream []
                           (fn [_] nothing)
@@ -113,3 +114,5 @@
              (or (empty? s)
                  (sink (rest s) f))))
       (f (StreamEnd nothing))))
+
+;; TODO: implement a 'zip' function or something
