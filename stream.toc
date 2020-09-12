@@ -1,11 +1,8 @@
 
-(defprotocol AsStream
-  (stream [_]))
-
-(deftype StreamEnd [x]
+(deftype StreamEnd []
   Stringable
   (string-list [_]
-    (list "<Stream End " (str x) ">")))
+    (list "<Stream End>")))
 
 (deftype StreamError [x])
 
@@ -60,7 +57,7 @@
 
   (extract [s]
     (either (hd-fn carrier)
-            (StreamEnd nothing)))
+            StreamEnd))
 
   (extend [s f]
     (Stream s (comp maybe f) rest empty?)))
@@ -69,6 +66,18 @@
                           (fn [_] nothing)
                           identity
                           empty?))
+
+(defprotocol AsStream
+  (stream [_]
+    (assert-result r (instance? Stream r)))
+
+  (stream-not-ended [x]
+    (maybe x)))
+
+(extend-type StreamEnd
+  AsStream
+  (stream-not-ended [x]
+    nothing))
 
 (extend-type LazyList
   AsStream
@@ -88,9 +97,7 @@
 (defn state-stream [initial-state state-fn]
   (Stream (state-fn initial-state)
           (fn [[x stream-state]]
-            (either (and (instance? StreamEnd x)
-                         (maybe nothing))
-                    (maybe x)))
+            (stream-not-ended x))
           (fn [[_ stream-state]]
             (state-fn stream-state))
           (fn [[_ stream-state]]
@@ -104,7 +111,7 @@
                     (either (for [_ (< 0 remaining)
                                   head (first s)]
                               [head [(dec remaining) (rest s)]])
-                            [(StreamEnd nothing) [0 empty-stream]])))))
+                            [StreamEnd [0 empty-stream]])))))
 
 (defn sink [s f]
   (or (map (instance? String s) f)
@@ -113,6 +120,6 @@
              (f x)
              (or (empty? s)
                  (sink (rest s) f))))
-      (f (StreamEnd nothing))))
+      (f StreamEnd)))
 
 ;; TODO: implement a 'zip' function or something
